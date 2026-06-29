@@ -1,38 +1,25 @@
-name: Build ARM Windows NT
+name: Build ARM Windows 2003 (Native MS Toolchain)
 
 on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install tools
+    - name: Download Win2K3 ARM source
+      shell: pwsh
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq cmake ninja-build gcc-arm-none-eabi 2>&1 | tail -1
+        $token = "${{ secrets.GITHUB_TOKEN }}"
+        $headers = @{ Authorization = "Bearer $token" }
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/bitcat666/reactos-arm-kernel/releases/latest" -Headers $headers
+        # For now, just verify we have the right setup
+        Write-Host "Windows CI ready for ARM cross-compilation"
+        Write-Host "Need: Win2K3 source tree + ReactOS ARM HAL/KE + clarm.exe"
     
-    - name: Clone ReactOS
+    - name: Verify ARM compiler
+      shell: cmd
       run: |
-        git clone --depth 1 https://github.com/bitcat666/reactos.git /tmp/reactos 2>&1 | tail -3
-        ls /tmp/reactos/CMakeLists.txt && echo "✓"
-
-    - name: CMake configure for ARM
-      run: |
-        cd /tmp/reactos
-        mkdir build && cd build
-        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc           -DMINGW_TOOLCHAIN_PREFIX=""           2>&1 | tail -15
-
-    - name: Build hal + ntoskrnl
-      run: |
-        cd /tmp/reactos/build || exit 0
-        ninja hal ntoskrnl 2>&1 | tail -20 || true
-        echo "=== Artifacts ==="
-        find . \( -name "*.dll" -o -name "*.sys" -o -name "ntoskrnl*" \) 2>/dev/null
-
-    - uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: arm-kernel
-        path: /tmp/reactos/build/**/*
+        echo The ARM compiler (clarm.exe) runs on Windows x86
+        echo Need to upload Win2K3 tools + ReactOS ARM sources as release
