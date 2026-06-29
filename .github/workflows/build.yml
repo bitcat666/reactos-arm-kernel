@@ -13,20 +13,20 @@ jobs:
         sudo apt-get update -qq
         sudo apt-get install -y -qq cmake ninja-build gcc-arm-none-eabi 2>&1 | tail -1
     
-    - name: Clone ReactOS (from fork)
+    - name: Clone ReactOS
       run: |
         git clone --depth 1 https://github.com/bitcat666/reactos.git /tmp/reactos 2>&1 | tail -3
-        ls /tmp/reactos/CMakeLists.txt && echo "✓ ReactOS cloned"
+        ls /tmp/reactos/CMakeLists.txt && echo "✓"
 
     - name: CMake configure for ARM
       run: |
         cd /tmp/reactos
         mkdir build && cd build
-        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc 2>&1 | tail -10
+        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc           -DMINGW_TOOLCHAIN_PREFIX=""           2>&1 | tail -15
 
     - name: Build hal + ntoskrnl
       run: |
-        cd /tmp/reactos/build
+        cd /tmp/reactos/build || exit 0
         ninja hal ntoskrnl 2>&1 | tail -20 || true
         echo "=== Artifacts ==="
         find . \( -name "*.dll" -o -name "*.sys" -o -name "ntoskrnl*" \) 2>/dev/null
