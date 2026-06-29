@@ -1,4 +1,4 @@
-name: Build ARM Windows NT (ReactOS + Win2K3)
+name: Build ARM Windows NT
 
 on: [push, workflow_dispatch]
 
@@ -11,30 +11,26 @@ jobs:
     - name: Install tools
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y -qq cmake ninja-build gcc-arm-none-eabi wget 2>&1 | tail -1
+        sudo apt-get install -y -qq cmake ninja-build gcc-arm-none-eabi 2>&1 | tail -1
     
-    - name: Download ReactOS source
+    - name: Clone ReactOS (from fork)
       run: |
-        cd /tmp
-        wget -q --timeout=120 --tries=3           -O reactos.zip           https://github.com/reactos/reactos/archive/v0.4.15.zip
-        unzip -q reactos.zip
-        mv reactos-* reactos
-        ls /tmp/reactos/CMakeLists.txt && echo "✓ ReactOS source"
-    
-    - name: Configure ARM
+        git clone --depth 1 https://github.com/bitcat666/reactos.git /tmp/reactos 2>&1 | tail -3
+        ls /tmp/reactos/CMakeLists.txt && echo "✓ ReactOS cloned"
+
+    - name: CMake configure for ARM
       run: |
         cd /tmp/reactos
         mkdir build && cd build
-        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc           2>&1 | tail -10
-    
-    - name: Build HAL + ntoskrnl
+        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc 2>&1 | tail -10
+
+    - name: Build hal + ntoskrnl
       run: |
         cd /tmp/reactos/build
         ninja hal ntoskrnl 2>&1 | tail -20 || true
-        echo "=== Build artifacts ==="
-        find . -name "*.dll" -o -name "*.a" 2>/dev/null | head -20
-        find . -name "ntoskrnl*" -o -name "hal.dll" 2>/dev/null
-    
+        echo "=== Artifacts ==="
+        find . \( -name "*.dll" -o -name "*.sys" -o -name "ntoskrnl*" \) 2>/dev/null
+
     - uses: actions/upload-artifact@v4
       if: always()
       with:
