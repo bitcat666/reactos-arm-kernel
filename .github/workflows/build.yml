@@ -8,35 +8,33 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Clone ReactOS source
+    - name: Clone ReactOS (shallow)
       run: |
-        git clone --depth 1 --filter=blob:none           https://github.com/reactos/reactos.git /tmp/reactos 2>&1 | tail -3
-        cd /tmp/reactos
-        git sparse-checkout set           hal/halarm           ntoskrnl/ke/arm           ntoskrnl/include           sdk/include           sdk/include/crt           sdk/include/psdk           boot/freeldr/freeldr/arch/arm
-        echo "ReactOS cloned"
+        git clone --depth 1 https://github.com/reactos/reactos.git /tmp/reactos 2>&1 | tail -5
+        echo "=== Check headers ==="
+        ls /tmp/reactos/sdk/include/crt/excpt.h && echo "excpt.h OK"
+        ls /tmp/reactos/sdk/include/psdk/ntverp.h && echo "ntverp.h OK"
     
     - name: Install ARM compiler
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq gcc-arm-none-eabi 2>&1 | tail -1
+        sudo apt-get update -qq && sudo apt-get install -y -qq gcc-arm-none-eabi 2>&1 | tail -1
         arm-none-eabi-gcc --version | head -1
     
-    - name: Build ARM HAL
+    - name: Compile ARM HAL
       run: |
-        cd /tmp/reactos
-        mkdir -p build/hal && cd build/hal
-        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I../../hal/halarm/include           -I../../sdk/include           -I../../sdk/include/crt           -I../../sdk/include/psdk           -D_NTHALDLL_ -D_NTHAL_ -D_ARM_ -D__arm__ -D_M_ARM           ../../hal/halarm/generic/*.c ../../hal/halarm/versa/*.c 2>&1 | tail -3
+        ROS=/tmp/reactos
+        mkdir -p $ROS/build/hal && cd $ROS/build/hal
+        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I$ROS/hal/halarm/include           -I$ROS/sdk/include -I$ROS/sdk/include/crt -I$ROS/sdk/include/psdk           -D_NTHALDLL_ -D_NTHAL_ -D_ARM_ -D__arm__ -D_M_ARM           $ROS/hal/halarm/generic/*.c $ROS/hal/halarm/versa/*.c 2>&1 | grep -E "error|warning" | head -5
         echo "HAL: $(ls *.o 2>/dev/null | wc -l) objects"
     
-    - name: Build ARM Kernel
+    - name: Compile ARM Kernel
       run: |
-        cd /tmp/reactos
-        mkdir -p build/ke && cd build/ke
-        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I../../ntoskrnl/include           -I../../hal/halarm/include           -I../../sdk/include           -I../../sdk/include/crt           -I../../sdk/include/psdk           -D_ARM_ -DARM -D__arm__ -D_M_ARM -D_NTOSKRNL_           ../../ntoskrnl/ke/arm/*.c 2>&1 | tail -3
+        ROS=/tmp/reactos
+        mkdir -p $ROS/build/ke && cd $ROS/build/ke
+        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I$ROS/ntoskrnl/include -I$ROS/hal/halarm/include           -I$ROS/sdk/include -I$ROS/sdk/include/crt -I$ROS/sdk/include/psdk           -D_ARM_ -DARM -D__arm__ -D_M_ARM -D_NTOSKRNL_           $ROS/ntoskrnl/ke/arm/*.c 2>&1 | grep -E "error|warning" | head -5
         echo "KE: $(ls *.o 2>/dev/null | wc -l) objects"
     
-    - name: Upload
-      uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v4
       with:
         name: arm-nt-kernel
         path: /tmp/reactos/build/**/*.o
