@@ -8,42 +8,35 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install ARM compiler + CMake
+    - name: Install tools
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y -qq cmake ninja-build gcc-arm-none-eabi 2>&1 | tail -1
-        arm-none-eabi-gcc --version | head -1
-        cmake --version | head -1
+        sudo apt-get install -y -qq cmake ninja-build gcc-arm-none-eabi wget 2>&1 | tail -1
     
-    - name: Download ReactOS 0.4.15 source
+    - name: Download ReactOS source
       run: |
-        curl -sL --max-time 120           -o /tmp/reactos.tar.gz           https://github.com/reactos/reactos/archive/refs/tags/v0.4.15.tar.gz 2>&1 | tail -1
-        tar xzf /tmp/reactos.tar.gz -C /tmp
-        mv /tmp/reactos-* /tmp/reactos
-        ls /tmp/reactos/CMakeLists.txt && echo "ReactOS source OK"
+        cd /tmp
+        wget -q --timeout=120 --tries=3           -O reactos.zip           https://github.com/reactos/reactos/archive/v0.4.15.zip
+        unzip -q reactos.zip
+        mv reactos-* reactos
+        ls /tmp/reactos/CMakeLists.txt && echo "✓ ReactOS source"
     
-    - name: Configure ARM build
+    - name: Configure ARM
       run: |
         cd /tmp/reactos
         mkdir build && cd build
-        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc           2>&1 | tail -15
+        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc           2>&1 | tail -10
     
-    - name: Build HAL
+    - name: Build HAL + ntoskrnl
       run: |
         cd /tmp/reactos/build
-        ninja hal 2>&1 | tail -10
-        find . -name "*.dll" -o -name "*.a" -o -name "*.o" 2>/dev/null | head -20
-        echo "HAL built"
-    
-    - name: Build ntoskrnl
-      run: |
-        cd /tmp/reactos/build
-        ninja ntoskrnl 2>&1 | tail -10
-        find . -name "*.dll" -o -name "ntoskrnl*" 2>/dev/null | head -10
-        echo "Kernel built"
+        ninja hal ntoskrnl 2>&1 | tail -20 || true
+        echo "=== Build artifacts ==="
+        find . -name "*.dll" -o -name "*.a" 2>/dev/null | head -20
+        find . -name "ntoskrnl*" -o -name "hal.dll" 2>/dev/null
     
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: arm-ntos
+        name: arm-kernel
         path: /tmp/reactos/build/**/*
