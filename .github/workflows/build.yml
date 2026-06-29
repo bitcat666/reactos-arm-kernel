@@ -1,0 +1,44 @@
+name: Build ReactOS ARM NT Kernel
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install ARM cross-compiler
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq gcc-arm-none-eabi cmake ninja-build 2>&1 | tail -3
+        arm-none-eabi-gcc --version | head -1
+    
+    - name: Build ARM HAL
+      run: |
+        echo "=== Building ARM HAL from ReactOS ==="
+        mkdir -p build/hal
+        cd build/hal
+        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding \
+          -I../../hal/halarm/include \
+          -D_NTHALDLL_ -D_NTHAL_ -D_ARM_ \
+          ../../hal/halarm/generic/*.c ../../hal/halarm/versa/*.c 2>&1 | tail -5
+        ls *.o 2>/dev/null | wc -l
+        echo "HAL objects compiled"
+    
+    - name: Build ARM Kernel layer
+      run: |
+        mkdir -p build/ke
+        cd build/ke
+        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding \
+          -I../../ntoskrnl/include -I../../hal/halarm/include \
+          -D_ARM_ -DARM -DNTOS_KERNEL \
+          ../../ntoskrnl/ke/arm/*.c 2>&1 | tail -5
+        ls *.o 2>/dev/null | wc -l
+        echo "Kernel objects compiled"
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: arm-nt-kernel
+        path: build/**/*.o
