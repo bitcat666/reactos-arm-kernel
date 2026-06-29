@@ -8,7 +8,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install ARM cross-compiler
+    - name: Clone ReactOS source
+      run: |
+        git clone --depth 1 --filter=blob:none           https://github.com/reactos/reactos.git /tmp/reactos 2>&1 | tail -3
+        cd /tmp/reactos
+        git sparse-checkout set           hal/halarm           ntoskrnl/ke/arm           ntoskrnl/include           sdk/include           sdk/include/crt           sdk/include/psdk           boot/freeldr/freeldr/arch/arm
+        echo "ReactOS cloned"
+    
+    - name: Install ARM compiler
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y -qq gcc-arm-none-eabi 2>&1 | tail -1
@@ -16,30 +23,20 @@ jobs:
     
     - name: Build ARM HAL
       run: |
-        echo "=== Building ARM HAL ==="
-        mkdir -p build/hal
-        cd build/hal
-        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I../../hal/halarm/include           -I../../sdk/include           -I../../sdk/include/psdk           -I../../sdk/include/crt           -I../../include/reactos           -D_NTHALDLL_ -D_NTHAL_ -D_ARM_ -D__arm__           ../../hal/halarm/generic/*.c ../../hal/halarm/versa/*.c 2>&1 | grep -E "error|warning" | head -10
-        COUNT=$(ls *.o 2>/dev/null | wc -l)
-        echo "HAL: $COUNT objects compiled"
+        cd /tmp/reactos
+        mkdir -p build/hal && cd build/hal
+        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I../../hal/halarm/include           -I../../sdk/include           -I../../sdk/include/crt           -I../../sdk/include/psdk           -D_NTHALDLL_ -D_NTHAL_ -D_ARM_ -D__arm__ -D_M_ARM           ../../hal/halarm/generic/*.c ../../hal/halarm/versa/*.c 2>&1 | tail -3
+        echo "HAL: $(ls *.o 2>/dev/null | wc -l) objects"
     
-    - name: Build ARM Kernel layer
+    - name: Build ARM Kernel
       run: |
-        mkdir -p build/ke
-        cd build/ke
-        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I../../ntoskrnl/include           -I../../hal/halarm/include           -I../../sdk/include           -I../../sdk/include/psdk           -I../../sdk/include/crt           -I../../include/reactos           -D_ARM_ -DARM -D__arm__ -D_NTOSKRNL_           ../../ntoskrnl/ke/arm/*.c 2>&1 | grep -E "error|warning" | head -10
-        COUNT=$(ls *.o 2>/dev/null | wc -l)
-        echo "KE: $COUNT objects compiled"
+        cd /tmp/reactos
+        mkdir -p build/ke && cd build/ke
+        arm-none-eabi-gcc -c -O1 -nostdlib -ffreestanding           -I../../ntoskrnl/include           -I../../hal/halarm/include           -I../../sdk/include           -I../../sdk/include/crt           -I../../sdk/include/psdk           -D_ARM_ -DARM -D__arm__ -D_M_ARM -D_NTOSKRNL_           ../../ntoskrnl/ke/arm/*.c 2>&1 | tail -3
+        echo "KE: $(ls *.o 2>/dev/null | wc -l) objects"
     
-    - name: Show results
-      run: |
-        echo "=== All ARM objects ==="
-        find build -name "*.o" | sort
-        echo ""
-        find build -name "*.o" | wc -l | xargs echo "Total:"
-    
-    - name: Upload artifacts
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: arm-nt-kernel
-        path: build/**/*.o
+        path: /tmp/reactos/build/**/*.o
