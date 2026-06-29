@@ -1,4 +1,4 @@
-name: Build ARM Windows 2003 (Native MS Toolchain)
+name: Test Win2K3 ARM Compiler
 
 on: [push, workflow_dispatch]
 
@@ -8,18 +8,29 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Download Win2K3 ARM source
+    - name: Download ARM tools
       shell: pwsh
       run: |
+        $repo = "${{ github.repository }}"
         $token = "${{ secrets.GITHUB_TOKEN }}"
         $headers = @{ Authorization = "Bearer $token" }
-        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/bitcat666/reactos-arm-kernel/releases/latest" -Headers $headers
-        # For now, just verify we have the right setup
-        Write-Host "Windows CI ready for ARM cross-compilation"
-        Write-Host "Need: Win2K3 source tree + ReactOS ARM HAL/KE + clarm.exe"
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/test" -Headers $headers
+        $asset = $release.assets | Where-Object { $_.name -like "arm_test*" }
+        Invoke-WebRequest -Uri $asset.browser_download_url -Headers $headers -OutFile "arm_test.7z"
+        7z x arm_test.7z -oD:\ -y
+        dir D:\arm_test\tools\arm\clarm.exe
     
-    - name: Verify ARM compiler
+    - name: Compile ARM test
       shell: cmd
       run: |
-        echo The ARM compiler (clarm.exe) runs on Windows x86
-        echo Need to upload Win2K3 tools + ReactOS ARM sources as release
+        set PATH=D:\arm_test\tools\arm;%PATH%
+        cd D:\arm_test
+        clarm.exe /c /O1 test.c /Fotest.obj
+        echo COMPILE=%ERRORLEVEL%
+        dir test.obj
+    
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: arm-obj
+        path: D:\arm_test\test.obj
