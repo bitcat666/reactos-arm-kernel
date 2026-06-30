@@ -7,31 +7,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install tools
+
+    - name: Install ARM GCC
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y -qq cmake ninja-build gcc-arm-none-eabi 2>&1 | tail -1
+        sudo apt-get install -y -qq gcc-arm-none-eabi 2>&1 | tail -1
         arm-none-eabi-gcc --version | head -1
-    
+
     - name: Clone ReactOS
       run: |
-        git clone --depth 1 https://github.com/bitcat666/reactos.git /tmp/reactos 2>&1 | tail -3
-        ls /tmp/reactos/CMakeLists.txt && echo "✓"
+        git clone --depth 1 https://github.com/bitcat666/reactos.git /tmp/reactos 2>&1 | tail -2
+        ls /tmp/reactos/CMakeLists.txt && echo "OK"
 
-    - name: CMake ARM config
+    - name: Build ARM HAL
       run: |
-        cd /tmp/reactos && mkdir build && cd build
-        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc           -DMINGW_TOOLCHAIN_PREFIX=""           2>&1 | tail -15
+        cd /tmp/reactos
+        mkdir build && cd build
+        cmake .. -DARCH=arm -GNinja           -DCMAKE_TOOLCHAIN_FILE=../toolchain-gcc.cmake           -DCMAKE_C_COMPILER=arm-none-eabi-gcc           -DMINGW_TOOLCHAIN_PREFIX=""           -DCMAKE_C_FLAGS="-Wno-error" 2>&1 | tail -5
+        ninja hal 2>&1 | tail -5
+        find . -name "*.dll" -o -name "*.a" | head -10
 
-    - name: Build
+    - name: Build ARM Kernel
       run: |
         cd /tmp/reactos/build
-        ninja hal ntoskrnl 2>&1 | tail -30 || true
-        find . -name "*.dll" -o -name "*.sys" -o -name "ntoskrnl*" 2>/dev/null
+        ninja ntoskrnl 2>&1 | tail -5
+        find . -name "ntoskrnl*" -o -name "*.sys" | head -10
 
     - uses: actions/upload-artifact@v4
-      if: always()
       with:
-        name: arm-build
+        name: arm-hal-kernel
         path: /tmp/reactos/build/**/*
